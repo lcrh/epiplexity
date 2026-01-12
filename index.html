@@ -99,8 +99,8 @@
 
         <div class="control-row">
           <label for="prediction-horizon" data-tooltip="How many steps ahead the transformer tries to predict. Longer horizons are harder but may better capture the NCA's complexity.">Prediction Horizon</label>
-          <input type="range" id="prediction-horizon" min="1" max="20" value="5" step="1">
-          <span class="value" id="prediction-horizon-value">5</span>
+          <input type="range" id="prediction-horizon" min="1" max="20" value="3" step="1">
+          <span class="value" id="prediction-horizon-value">3</span>
         </div>
 
         <h3 data-tooltip="The transformer model tries to predict future NCA states. A more powerful transformer can detect subtler patterns. If it's too weak, even predictable patterns look like noise (inflating epiplexity). If it's too strong, it might overfit.">Transformer</h3>

@@ -24,7 +24,7 @@ class NCAApp {
     // Epiplexity Configuration
     this.epiConfig = {
       burnInSteps: 50,
-      predictionHorizon: 5,
+      predictionHorizon: 3,
       maxTrainSteps: 500,
       earlyStopPatience: 100,
       dModel: 64,
