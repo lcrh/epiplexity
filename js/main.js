@@ -892,8 +892,9 @@ class NCAApp {
     const shouldMutate = Math.random() < this.mutationChance && this.zoo.length > 0;
 
     if (shouldMutate) {
-      // Pick zoo entry proportional to exp(epiplexity) - higher epiplexity = more likely to be selected
-      const weights = this.zoo.map(e => Math.exp(e.epiplexity));
+      // Pick zoo entry proportional to exp(epiplexity / temp) - higher epiplexity = more likely to be selected
+      const temp = 15;
+      const weights = this.zoo.map(e => Math.exp(e.epiplexity / temp));
       const totalWeight = weights.reduce((a, b) => a + b, 0);
       let r = Math.random() * totalWeight;
       let selectedIdx = 0;
