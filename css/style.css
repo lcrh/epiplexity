@@ -146,6 +146,27 @@ h1 {
   text-transform: uppercase;
 }
 
+.intro {
+  max-width: 700px;
+  text-align: center;
+  color: #8892a0;
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 30px;
+}
+
+.intro a {
+  color: #4ecdc4;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.intro a:hover {
+  color: #6eddd4;
+  text-decoration: underline;
+}
+
 h2 {
   font-size: 13px;
   font-weight: 500;
