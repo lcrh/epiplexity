@@ -29,7 +29,7 @@ class NCAApp {
       earlyStopPatience: 100,
       dModel: 64,
       numLayers: 2,
-      minFinalLoss: 0.05
+      minChangePercent: 10
     };
 
     // NCA State
@@ -63,7 +63,9 @@ class NCAApp {
     this.mutationChance = 0.5;
     this.autoEvolveGeneration = 0;
     this.autoEvolveTrainResolve = null;
-    this.lastTrainWasBoring = false; // True if final loss was below threshold
+    this.lastTrainWasBoring = false; // True if final loss was ~0
+    this.lastTrainWasStatic = false; // True if NCA had too little change between frames
+    this.lastAvgChangePercent = 0;
 
     // Bind methods
     this.step = this.step.bind(this);
@@ -120,8 +122,8 @@ class NCAApp {
     this.earlyStopValue = document.getElementById('early-stop-value');
     this.smoothingSlider = document.getElementById('smoothing');
     this.smoothingValue = document.getElementById('smoothing-value');
-    this.minFinalLossSlider = document.getElementById('min-final-loss');
-    this.minFinalLossValue = document.getElementById('min-final-loss-value');
+    this.minChangeSlider = document.getElementById('min-change');
+    this.minChangeValue = document.getElementById('min-change-value');
     this.trainStepDisplay = document.getElementById('train-step-display');
     this.trainMaxDisplay = document.getElementById('train-max-display');
     this.trainLossDisplay = document.getElementById('train-loss-display');
@@ -178,6 +180,10 @@ class NCAApp {
     });
 
     this.randomizeBtn.addEventListener('click', () => {
+      // Stop auto-evolve if running (must be before modifying ncaModel)
+      if (this.isAutoEvolving) {
+        this.stopAutoEvolve();
+      }
       this.ncaModel.randomize();
       this.resetState();
       this.renderer.draw(this.state);
@@ -185,6 +191,10 @@ class NCAApp {
     });
 
     this.mutateBtn.addEventListener('click', () => {
+      // Stop auto-evolve if running (must be before modifying ncaModel)
+      if (this.isAutoEvolving) {
+        this.stopAutoEvolve();
+      }
       const strength = parseFloat(this.mutateStrengthSlider.value);
       this.mutateNCA(strength);
     });
@@ -277,10 +287,10 @@ class NCAApp {
       this.lossGraph.setSmoothingFactor(value);
     });
 
-    this.minFinalLossSlider.addEventListener('input', (e) => {
-      const value = parseFloat(e.target.value);
-      this.minFinalLossValue.textContent = value.toFixed(2);
-      this.epiConfig.minFinalLoss = value;
+    this.minChangeSlider.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value);
+      this.minChangeValue.textContent = `${value}%`;
+      this.epiConfig.minChangePercent = value;
     });
 
     this.saveZooBtn.addEventListener('click', () => {
@@ -387,7 +397,7 @@ class NCAApp {
 
     // Build dataset (use setTimeout to allow UI update)
     await new Promise(resolve => setTimeout(resolve, 50));
-    this.buildTrainingDataset(this.epiConfig.maxTrainSteps);
+    const avgChangePercent = this.buildTrainingDataset(this.epiConfig.maxTrainSteps);
 
     // Shuffle dataset
     for (let i = this.trainingData.length - 1; i > 0; i--) {
@@ -395,7 +405,7 @@ class NCAApp {
       [this.trainingData[i], this.trainingData[j]] = [this.trainingData[j], this.trainingData[i]];
     }
 
-    console.log(`Dataset built and shuffled: ${this.trainingData.length} samples`);
+    console.log(`Dataset built and shuffled: ${this.trainingData.length} samples, avg change: ${avgChangePercent.toFixed(1)}%`);
 
     // Create new epiplexity model
     this.epiplexityModel = new EpiplexityModel({
@@ -472,13 +482,17 @@ class NCAApp {
    * Build training dataset by running NCA simulations
    * Extracts multiple pairs per simulation for efficiency
    * @param {number} numSamples - Total number of training pairs needed
+   * @returns {number} - Average change percentage between input/target pairs
    */
   buildTrainingDataset(numSamples) {
     const pairsPerRun = 8;
     const horizon = this.epiConfig.predictionHorizon;
     const pairOffset = 1;
+    const totalCells = this.ncaConfig.width * this.ncaConfig.height;
 
     const numRuns = Math.ceil(numSamples / pairsPerRun);
+    let totalChangedCells = 0;
+    let totalPairs = 0;
 
     for (let run = 0; run < numRuns; run++) {
       // Create random initial state
@@ -524,6 +538,14 @@ class NCAApp {
           return tf.argMax(stateSquashed, 2).reshape([-1]); // [H*W]
         });
 
+        // Calculate change between input and target
+        const changedCells = tf.tidy(() => {
+          const diff = tf.notEqual(input, target);
+          return tf.sum(diff).arraySync();
+        });
+        totalChangedCells += changedCells;
+        totalPairs++;
+
         this.trainingData.push({ input, target });
 
         // Run offset steps (except after last pair)
@@ -539,6 +561,12 @@ class NCAApp {
       // Clean up final state
       state.dispose();
     }
+
+    // Return average change percentage
+    const avgChangePercent = totalPairs > 0
+      ? (totalChangedCells / totalPairs / totalCells) * 100
+      : 0;
+    return avgChangePercent;
   }
 
   /**
@@ -697,6 +725,11 @@ class NCAApp {
   loadFromZoo(id) {
     const entry = this.zoo.find(e => e.id === id);
     if (!entry) return;
+
+    // Stop auto-evolve if running (must be before modifying ncaModel)
+    if (this.isAutoEvolving) {
+      this.stopAutoEvolve();
+    }
 
     // Stop any running simulation
     if (this.isRunning) {
@@ -969,6 +1002,10 @@ class NCAApp {
     // Dispose old training data
     this.disposeTrainingData();
 
+    // Reset static/boring flags
+    this.lastTrainWasStatic = false;
+    this.lastTrainWasBoring = false;
+
     // Update UI
     this.trainBtn.textContent = 'Stop';
     this.trainBtn.disabled = true;
@@ -978,9 +1015,26 @@ class NCAApp {
     this.trainMaxDisplay.textContent = this.epiConfig.maxTrainSteps;
     this.lossGraph.showMessage('Building dataset...');
 
-    // Build dataset
+    // Build dataset and get average change
     await new Promise(resolve => setTimeout(resolve, 50));
-    this.buildTrainingDataset(this.epiConfig.maxTrainSteps);
+    this.lastAvgChangePercent = this.buildTrainingDataset(this.epiConfig.maxTrainSteps);
+
+    // Check if NCA is too static
+    if (this.lastAvgChangePercent < this.epiConfig.minChangePercent) {
+      this.lastTrainWasStatic = true;
+      this.zooStatus.textContent = `Generation ${this.autoEvolveGeneration}: Skipped (too static: ${this.lastAvgChangePercent.toFixed(1)}% change)`;
+      console.log(`Auto-evolve skipped static NCA: ${this.lastAvgChangePercent.toFixed(1)}% change`);
+
+      // Clean up and continue
+      this.disposeTrainingData();
+      this.trainBtn.textContent = 'Estimate Epiplexity';
+      this.trainBtn.disabled = false;
+
+      if (this.isAutoEvolving) {
+        setTimeout(() => this.runAutoEvolveIteration(), 100);
+      }
+      return;
+    }
 
     // Shuffle dataset
     for (let i = this.trainingData.length - 1; i > 0; i--) {
@@ -1009,7 +1063,7 @@ class NCAApp {
     this.trainBtn.disabled = false;
     this.trainBtn.classList.add('training');
 
-    this.zooStatus.textContent = `Generation ${this.autoEvolveGeneration}: Training...`;
+    this.zooStatus.textContent = `Generation ${this.autoEvolveGeneration}: Training (${this.lastAvgChangePercent.toFixed(1)}% change)...`;
 
     // Run training loop with promise
     await new Promise(resolve => {
@@ -1059,8 +1113,8 @@ class NCAApp {
         this.stepsSinceImprovement++;
       }
 
-      // Check if loss is below minimum threshold (boring/constant pattern)
-      if (smoothedLoss < this.epiConfig.minFinalLoss) {
+      // Check if loss hit ~0 (perfectly predictable pattern)
+      if (smoothedLoss < 0.001) {
         isBoring = true;
       }
     }
@@ -1110,10 +1164,10 @@ class NCAApp {
       return;
     }
 
-    // Skip boring patterns (loss below threshold)
+    // Skip boring patterns (loss ~0)
     if (this.lastTrainWasBoring) {
-      this.zooStatus.textContent = `Generation ${this.autoEvolveGeneration}: Skipped (boring pattern, loss too low)`;
-      console.log(`Auto-evolve skipped boring specimen`);
+      this.zooStatus.textContent = `Generation ${this.autoEvolveGeneration}: Skipped (loss ~0, too predictable)`;
+      console.log(`Auto-evolve skipped boring specimen (loss ~0)`);
       return;
     }
 
