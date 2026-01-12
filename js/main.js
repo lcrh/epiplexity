@@ -188,6 +188,7 @@ class NCAApp {
       }
       this.ncaModel.randomize();
       this.resetState();
+      this.resetEpiplexity();
       this.renderer.draw(this.state);
       console.log('NCA weights and state randomized');
     });
@@ -242,6 +243,21 @@ class NCAApp {
         this.stopTraining();
       } else {
         this.startTraining();
+      }
+    });
+
+    // Keyboard shortcut: Space to toggle epiplexity estimation
+    document.addEventListener('keydown', (e) => {
+      // Ignore if typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (this.isTraining) {
+          this.stopTraining();
+        } else {
+          this.startTraining();
+        }
       }
     });
 
@@ -373,11 +389,6 @@ class NCAApp {
    * Start epiplexity training
    */
   async startTraining() {
-    // Pause NCA visualization if running
-    if (this.isRunning) {
-      this.toggleRunning();
-    }
-
     // Dispose old epiplexity model if exists
     if (this.epiplexityModel) {
       this.epiplexityModel.dispose();
