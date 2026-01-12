@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Epiplexity of Neural Cellular Automata</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.17.0/dist/tf-backend-webgpu.min.js"></script>
+</head>
+<body>
+  <h1 data-tooltip="Epiplexity measures how 'interesting' a system's dynamics are - neither too predictable nor purely random. This tool lets you explore NCAs and estimate their epiplexity.">Epiplexity of Neural Cellular Automata</h1>
+
+  <div class="main-container">
+    <!-- Left Panel: NCA -->
+    <div class="panel left-panel">
+      <div class="canvas-container">
+        <canvas id="nca-canvas"></canvas>
+      </div>
+
+      <div class="controls">
+        <div class="button-row full-width">
+          <button id="play-pause-btn" data-tooltip="Start or pause the NCA simulation. The NCA updates all cells simultaneously each step based on learned local rules.">Play</button>
+          <button id="reset-btn" data-tooltip="Reset the grid to a new random initial state while keeping the current NCA weights.">Reset</button>
+        </div>
+
+        <button id="randomize-btn" class="big-btn" data-tooltip="Generate completely new random weights for the NCA. This creates a new cellular automaton with different behavior.">Randomize NCA</button>
+
+        <div class="mutate-row">
+          <button id="mutate-btn" data-tooltip="Add small random perturbations to the current NCA weights. Useful for exploring variations of interesting patterns.">Mutate</button>
+          <input type="range" id="mutate-strength" min="0.01" max="0.5" value="0.05" step="0.01" data-tooltip="How much to perturb the weights. Lower values make subtle changes; higher values create more dramatic mutations.">
+          <span class="value" id="mutate-strength-value">0.05</span>
+        </div>
+
+        <h3 data-tooltip="The NCA is a neural network that determines how each cell updates based on its neighbors. Like Conway's Game of Life, but with learned rules instead of hand-crafted ones.">Neural Cellular Automaton (NCA)</h3>
+
+        <div class="control-row">
+          <label for="conv-layers" data-tooltip="Number of convolutional layers in the NCA. More layers allow more complex update rules but increase computation.">Conv Layers</label>
+          <input type="range" id="conv-layers" min="1" max="8" value="1">
+          <span class="value" id="conv-layers-value">1</span>
+        </div>
+
+        <div class="control-row">
+          <label for="internal-channels" data-tooltip="Hidden dimensions between conv layers. More channels let the NCA compute more complex intermediate representations.">Internal Channels</label>
+          <input type="range" id="internal-channels" min="4" max="64" value="4" step="4">
+          <span class="value" id="internal-channels-value">4</span>
+        </div>
+
+        <div class="control-row">
+          <label for="kernel-size" data-tooltip="Size of the neighborhood each cell can see. 3x3 sees immediate neighbors; larger kernels see further but are slower.">Kernel Size</label>
+          <select id="kernel-size">
+            <option value="3" selected>3x3</option>
+            <option value="5">5x5</option>
+            <option value="7">7x7</option>
+          </select>
+        </div>
+
+        <h3 data-tooltip="Controls for the visual simulation display.">Simulation</h3>
+
+        <div class="control-row">
+          <label for="target-fps" data-tooltip="Frames per second for the visualization. Higher = faster animation, but uses more CPU/GPU.">FPS</label>
+          <input type="range" id="target-fps" min="1" max="30" value="10">
+          <span class="value" id="target-fps-value">10</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Epiplexity -->
+    <div class="panel right-panel">
+      <h2 data-tooltip="Epiplexity is estimated by training a transformer to predict future NCA states. The area under the learning curve (above the final loss) measures how long it takes to learn the patterns - this is the epiplexity.">Epiplexity Estimation</h2>
+
+      <div class="graph-container">
+        <canvas id="loss-graph"></canvas>
+      </div>
+
+      <div class="epiplexity-value">
+        Epiplexity: <strong id="epiplexity-display">--</strong>
+      </div>
+
+      <div class="controls">
+        <button id="train-btn" class="big-btn" data-tooltip="Run the NCA to collect data, then train a transformer to predict its dynamics. The resulting learning curve reveals the epiplexity.">Estimate Epiplexity</button>
+        <button id="save-zoo-btn" class="big-btn" disabled data-tooltip="Save this NCA and its epiplexity score to your collection for comparison.">Save to Zoo</button>
+
+        <div class="train-progress">
+          <span>Step: <strong id="train-step-display">0</strong> / <strong id="train-max-display">500</strong></span>
+          <span>Loss: <strong id="train-loss-display">--</strong></span>
+        </div>
+
+        <h3 data-tooltip="Settings for collecting training data from the NCA simulation.">Data</h3>
+
+        <div class="control-row">
+          <label for="burn-in-steps" data-tooltip="How many steps to run the NCA before collecting data. Lets transient initial patterns settle into the NCA's typical dynamics.">Burn-in Steps</label>
+          <input type="range" id="burn-in-steps" min="10" max="500" value="50" step="10">
+          <span class="value" id="burn-in-steps-value">50</span>
+        </div>
+
+        <div class="control-row">
+          <label for="prediction-horizon" data-tooltip="How many steps ahead the transformer tries to predict. Longer horizons are harder but may better capture the NCA's complexity.">Prediction Horizon</label>
+          <input type="range" id="prediction-horizon" min="1" max="20" value="5" step="1">
+          <span class="value" id="prediction-horizon-value">5</span>
+        </div>
+
+        <h3 data-tooltip="The transformer model tries to predict future NCA states. A more powerful transformer can detect subtler patterns. If it's too weak, even predictable patterns look like noise (inflating epiplexity). If it's too strong, it might overfit.">Transformer</h3>
+
+        <div class="control-row">
+          <label for="d-model" data-tooltip="Embedding dimension of the transformer. Larger = more expressive but slower to train.">Model Dim</label>
+          <input type="range" id="d-model" min="16" max="128" value="64" step="16">
+          <span class="value" id="d-model-value">64</span>
+        </div>
+
+        <div class="control-row">
+          <label for="num-layers" data-tooltip="Number of transformer layers. Deeper models can capture more complex temporal patterns.">Depth</label>
+          <input type="range" id="num-layers" min="1" max="6" value="2" step="1">
+          <span class="value" id="num-layers-value">2</span>
+        </div>
+
+        <h3 data-tooltip="Settings for training the prediction model.">Training</h3>
+
+        <div class="control-row">
+          <label for="max-train-steps" data-tooltip="Maximum number of training steps. Training may stop earlier if converged.">Max Steps</label>
+          <input type="range" id="max-train-steps" min="100" max="2000" value="500" step="100">
+          <span class="value" id="max-train-steps-value">500</span>
+        </div>
+
+        <div class="control-row">
+          <label for="early-stop" data-tooltip="Stop training if the loss hasn't improved for this many steps. Prevents wasting time once the model has converged.">Early Stop</label>
+          <input type="range" id="early-stop" min="50" max="500" value="100" step="10">
+          <span class="value" id="early-stop-value">100</span>
+        </div>
+
+        <div class="control-row">
+          <label for="smoothing" data-tooltip="Exponential moving average factor for the loss curve. Higher = smoother curve, lower = more responsive to recent values.">Smoothing</label>
+          <input type="range" id="smoothing" min="0" max="0.99" value="0.8" step="0.01">
+          <span class="value" id="smoothing-value">0.8</span>
+        </div>
+
+        <div class="control-row">
+          <label for="min-final-loss" data-tooltip="If the loss drops below this threshold, stop training and skip this specimen. Very low loss means the NCA is too predictable (constant or simple repeating pattern).">Min Final Loss</label>
+          <input type="range" id="min-final-loss" min="0" max="0.5" value="0.05" step="0.01">
+          <span class="value" id="min-final-loss-value">0.05</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zoo Section -->
+  <div class="zoo-section">
+    <div class="zoo-header">
+      <h2 data-tooltip="Your collection of NCAs ranked by epiplexity. Click any specimen to load it into the simulator. The most interesting (highest epiplexity) NCAs appear first.">Zoo</h2>
+      <div class="zoo-controls">
+        <button id="auto-evolve-btn" data-tooltip="Automatically search for high-epiplexity NCAs using a genetic algorithm. Creates new random NCAs or mutates existing ones, measures their epiplexity, and keeps the best specimens.">Auto-Evolve</button>
+        <div class="zoo-control-row">
+          <label for="mutation-chance" data-tooltip="Probability of mutating an existing zoo specimen vs. creating a completely new random NCA. Higher values explore variations of known good NCAs; lower values search more broadly.">Mutation</label>
+          <input type="range" id="mutation-chance" min="0" max="100" value="50" step="5">
+          <span class="value" id="mutation-chance-value">50%</span>
+        </div>
+      </div>
+    </div>
+    <div class="zoo-status" id="zoo-status"></div>
+    <div class="zoo-empty" id="zoo-empty">Measure an NCA's epiplexity and save it to start your collection</div>
+    <div class="zoo-grid" id="zoo-grid"></div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
