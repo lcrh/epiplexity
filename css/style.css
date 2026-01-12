@@ -167,6 +167,16 @@ h1 {
   text-decoration: underline;
 }
 
+.zoo-intro {
+  max-width: 800px;
+  text-align: center;
+  color: #6a7280;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 30px;
+  margin-bottom: 0;
+}
+
 h2 {
   font-size: 13px;
   font-weight: 500;
@@ -632,7 +642,6 @@ button:disabled {
   position: relative;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 12px;
-  overflow: hidden;
   cursor: pointer;
   transition: all 0.25s ease;
   border: 2px solid transparent;
@@ -642,6 +651,10 @@ button:disabled {
   transform: translateY(-4px) scale(1.02);
   border-color: #4ecdc4;
   box-shadow: 0 8px 24px rgba(78, 205, 196, 0.3);
+}
+
+.zoo-item img {
+  border-radius: 10px 10px 0 0;
 }
 
 .zoo-item canvas {
@@ -725,6 +738,78 @@ button:disabled {
 .zoo-item-delete:hover {
   background: rgba(231, 76, 60, 1);
   transform: scale(1.1);
+}
+
+/* Zoo item final loss display */
+.zoo-item-loss {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #e74c3c;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  opacity: 0.9;
+}
+
+/* Zoo item tooltip */
+.zoo-item-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: linear-gradient(135deg, rgba(20, 25, 45, 0.98) 0%, rgba(30, 35, 55, 0.98) 100%);
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 180px;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(90, 127, 192, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.zoo-item:hover .zoo-item-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.zoo-tooltip-graph {
+  display: block;
+  width: 160px;
+  height: 80px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.zoo-tooltip-desc {
+  font-size: 11px;
+  color: #c8d0dc;
+  line-height: 1.5;
+}
+
+.zoo-tooltip-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: #8892a0;
+}
+
+.zoo-tooltip-stats strong {
+  color: #4ecdc4;
+  font-weight: 600;
+}
+
+.zoo-tooltip-interp {
+  font-size: 11px;
+  color: #a0a8b0;
+  font-style: italic;
 }
 
 /* Responsive adjustments */

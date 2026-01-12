@@ -54,6 +54,8 @@ class NCAApp {
     this.lastTrainedEpiplexity = null;
     this.lastTrainedWeights = null;
     this.lastTrainedConfig = null;
+    this.lastTrainedFinalLoss = null;
+    this.lastTrainedLossCurve = null; // Array of {step, loss} for tooltip
     this.burnInSnapshot = null; // Canvas snapshot after burn-in
 
     // Zoo state
@@ -458,6 +460,8 @@ class NCAApp {
     this.lastTrainedEpiplexity = epiplexity;
     this.lastTrainedWeights = this.ncaModel.getWeightsData();
     this.lastTrainedConfig = { ...this.ncaConfig };
+    this.lastTrainedFinalLoss = this.lossGraph.getMinLoss();
+    this.lastTrainedLossCurve = [...this.lossGraph.losses]; // Copy the loss curve
 
     // Update UI
     this.trainBtn.textContent = 'Estimate Epiplexity';
@@ -704,6 +708,8 @@ class NCAApp {
     const entry = {
       id: Date.now(),
       epiplexity: this.lastTrainedEpiplexity,
+      finalLoss: this.lastTrainedFinalLoss,
+      lossCurve: this.lastTrainedLossCurve,
       weights: this.lastTrainedWeights,
       config: this.lastTrainedConfig,
       thumbnail: this.burnInSnapshot
@@ -819,7 +825,7 @@ class NCAApp {
       }
       item.appendChild(rank);
 
-      // Info overlay
+      // Info overlay (bottom left - epiplexity)
       const info = document.createElement('div');
       info.className = 'zoo-item-info';
       const epiValue = document.createElement('div');
@@ -827,6 +833,16 @@ class NCAApp {
       epiValue.textContent = entry.epiplexity.toFixed(2);
       info.appendChild(epiValue);
       item.appendChild(info);
+
+      // Final loss display (bottom right)
+      const lossDisplay = document.createElement('div');
+      lossDisplay.className = 'zoo-item-loss';
+      lossDisplay.textContent = entry.finalLoss !== null ? entry.finalLoss.toFixed(3) : '--';
+      item.appendChild(lossDisplay);
+
+      // Tooltip with loss curve
+      const tooltip = this.createZooTooltip(entry);
+      item.appendChild(tooltip);
 
       // Delete button
       const deleteBtn = document.createElement('button');
@@ -845,6 +861,101 @@ class NCAApp {
 
       this.zooGrid.appendChild(item);
     });
+  }
+
+  /**
+   * Create tooltip element with loss curve for zoo item
+   * @param {Object} entry - Zoo entry with lossCurve data
+   * @returns {HTMLElement}
+   */
+  createZooTooltip(entry) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'zoo-item-tooltip';
+
+    // Create mini loss curve canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = 160;
+    canvas.height = 80;
+    canvas.className = 'zoo-tooltip-graph';
+    this.drawMiniLossCurve(canvas, entry.lossCurve, entry.finalLoss);
+    tooltip.appendChild(canvas);
+
+    // Stats text
+    const desc = document.createElement('div');
+    desc.className = 'zoo-tooltip-desc';
+    desc.innerHTML = `
+      <div class="zoo-tooltip-stats">
+        <span>Epiplexity: <strong>${entry.epiplexity.toFixed(2)}</strong></span>
+        <span>Final Loss: <strong>${entry.finalLoss !== null ? entry.finalLoss.toFixed(3) : '--'}</strong></span>
+      </div>
+    `;
+    tooltip.appendChild(desc);
+
+    return tooltip;
+  }
+
+  /**
+   * Draw a mini loss curve on a canvas
+   * @param {HTMLCanvasElement} canvas
+   * @param {Array} lossCurve - Array of {step, loss}
+   * @param {number} finalLoss - Minimum loss value
+   */
+  drawMiniLossCurve(canvas, lossCurve, finalLoss) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Background
+    ctx.fillStyle = '#0a0a15';
+    ctx.fillRect(0, 0, w, h);
+
+    if (!lossCurve || lossCurve.length < 2) {
+      ctx.fillStyle = '#444';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data', w / 2, h / 2);
+      return;
+    }
+
+    // Find bounds
+    const maxStep = lossCurve[lossCurve.length - 1].step;
+    let maxLoss = Math.max(...lossCurve.map(p => p.loss)) * 1.1;
+    maxLoss = Math.max(maxLoss, 0.5);
+
+    const margin = { left: 5, right: 5, top: 5, bottom: 5 };
+    const plotW = w - margin.left - margin.right;
+    const plotH = h - margin.top - margin.bottom;
+
+    // Draw loss curve
+    ctx.strokeStyle = '#4ecdc4';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+
+    for (let i = 0; i < lossCurve.length; i++) {
+      const point = lossCurve[i];
+      const x = margin.left + (point.step / maxStep) * plotW;
+      const y = margin.top + plotH - (Math.min(point.loss, maxLoss) / maxLoss) * plotH;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+
+    // Draw final loss line
+    if (finalLoss !== null) {
+      const y = margin.top + plotH - (Math.min(finalLoss, maxLoss) / maxLoss) * plotH;
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(w - margin.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
 
   /**
@@ -1138,6 +1249,8 @@ class NCAApp {
       this.lastTrainedEpiplexity = epiplexity;
       this.lastTrainedWeights = this.ncaModel.getWeightsData();
       this.lastTrainedConfig = { ...this.ncaConfig };
+      this.lastTrainedFinalLoss = this.lossGraph.getMinLoss();
+      this.lastTrainedLossCurve = [...this.lossGraph.losses];
       this.lastTrainWasBoring = isBoring;
 
       // Update UI
@@ -1174,6 +1287,8 @@ class NCAApp {
     const entry = {
       id: Date.now(),
       epiplexity: this.lastTrainedEpiplexity,
+      finalLoss: this.lastTrainedFinalLoss,
+      lossCurve: this.lastTrainedLossCurve,
       weights: this.lastTrainedWeights,
       config: this.lastTrainedConfig,
       thumbnail: this.burnInSnapshot
