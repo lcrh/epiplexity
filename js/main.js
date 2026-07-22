@@ -7,6 +7,7 @@
 import { NCAModel } from './nca-model.js';
 import { Renderer } from './renderer.js';
 import { EpiplexityModel } from './epiplexity-model.js';
+import { ConvEpiplexityModel } from './conv-epiplexity-model.js';
 import { LossGraph } from './loss-graph.js';
 
 class NCAApp {
@@ -25,11 +26,19 @@ class NCAApp {
     this.epiConfig = {
       burnInSteps: 50,
       predictionHorizon: 3,
-      maxTrainSteps: 500,
+      maxTrainSteps: 1500,
       earlyStopPatience: 100,
+      architecture: 'conv', // 'transformer' | 'conv'
       dModel: 64,
       numLayers: 2,
+      obsConvLayers: 3,
+      obsChannels: 24,
+      obsKernelSize: 5,
       minChangePercent: 10
+    };
+    this.archMaxTrainSteps = {
+      transformer: 500,
+      conv: 1500
     };
 
     // NCA State
@@ -116,10 +125,18 @@ class NCAApp {
     this.predictionHorizonValue = document.getElementById('prediction-horizon-value');
     this.maxTrainStepsSlider = document.getElementById('max-train-steps');
     this.maxTrainStepsValue = document.getElementById('max-train-steps-value');
+    this.observerArchSelect = document.getElementById('observer-arch');
+    this.transformerControls = document.getElementById('transformer-controls');
+    this.convControls = document.getElementById('conv-controls');
     this.dModelSlider = document.getElementById('d-model');
     this.dModelValue = document.getElementById('d-model-value');
     this.numLayersSlider = document.getElementById('num-layers');
     this.numLayersValue = document.getElementById('num-layers-value');
+    this.obsConvLayersSlider = document.getElementById('obs-conv-layers');
+    this.obsConvLayersValue = document.getElementById('obs-conv-layers-value');
+    this.obsChannelsSlider = document.getElementById('obs-channels');
+    this.obsChannelsValue = document.getElementById('obs-channels-value');
+    this.obsKernelSizeSelect = document.getElementById('obs-kernel-size');
     this.earlyStopSlider = document.getElementById('early-stop');
     this.earlyStopValue = document.getElementById('early-stop-value');
     this.smoothingSlider = document.getElementById('smoothing');
@@ -161,6 +178,7 @@ class NCAApp {
     this.setupNCAEventListeners();
     this.setupEpiplexityEventListeners();
     this.setupZooEventListeners();
+    this.updateObserverControlsVisibility();
 
     // Initial render
     await this.renderer.draw(this.state);
@@ -277,8 +295,15 @@ class NCAApp {
       const value = parseInt(e.target.value);
       this.maxTrainStepsValue.textContent = value;
       this.epiConfig.maxTrainSteps = value;
+      this.archMaxTrainSteps[this.epiConfig.architecture] = value;
       this.lossGraph.setMaxSteps(value);
       this.trainMaxDisplay.textContent = value;
+    });
+
+    this.observerArchSelect.addEventListener('change', (e) => {
+      this.epiConfig.architecture = e.target.value;
+      this.updateObserverControlsVisibility();
+      this.applyArchitectureMaxTrainSteps();
     });
 
     this.dModelSlider.addEventListener('input', (e) => {
@@ -291,6 +316,22 @@ class NCAApp {
       const value = parseInt(e.target.value);
       this.numLayersValue.textContent = value;
       this.epiConfig.numLayers = value;
+    });
+
+    this.obsConvLayersSlider.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value);
+      this.obsConvLayersValue.textContent = value;
+      this.epiConfig.obsConvLayers = value;
+    });
+
+    this.obsChannelsSlider.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value);
+      this.obsChannelsValue.textContent = value;
+      this.epiConfig.obsChannels = value;
+    });
+
+    this.obsKernelSizeSelect.addEventListener('change', (e) => {
+      this.epiConfig.obsKernelSize = parseInt(e.target.value);
     });
 
     this.earlyStopSlider.addEventListener('input', (e) => {
@@ -313,6 +354,48 @@ class NCAApp {
 
     this.saveZooBtn.addEventListener('click', () => {
       this.saveToZoo();
+    });
+  }
+
+  /**
+   * Show transformer or conv capacity controls based on architecture
+   */
+  updateObserverControlsVisibility() {
+    const isConv = this.epiConfig.architecture === 'conv';
+    this.transformerControls.style.display = isConv ? 'none' : '';
+    this.convControls.style.display = isConv ? '' : 'none';
+  }
+
+  /**
+   * Apply the default max-train-steps for the selected architecture
+   */
+  applyArchitectureMaxTrainSteps() {
+    const steps = this.archMaxTrainSteps[this.epiConfig.architecture] ?? 500;
+    this.epiConfig.maxTrainSteps = steps;
+    this.maxTrainStepsSlider.value = steps;
+    this.maxTrainStepsValue.textContent = steps;
+    this.lossGraph.setMaxSteps(steps);
+    this.trainMaxDisplay.textContent = steps;
+  }
+
+  /**
+   * Create the selected epiplexity observer model
+   */
+  createEpiplexityModel() {
+    if (this.epiConfig.architecture === 'conv') {
+      return new ConvEpiplexityModel({
+        gridSize: this.ncaConfig.width,
+        numStates: 4,
+        numConvLayers: this.epiConfig.obsConvLayers,
+        channels: this.epiConfig.obsChannels,
+        kernelSize: this.epiConfig.obsKernelSize
+      });
+    }
+    return new EpiplexityModel({
+      gridSize: this.ncaConfig.width,
+      dModel: this.epiConfig.dModel,
+      numLayers: this.epiConfig.numLayers,
+      numStates: 4
     });
   }
 
@@ -421,12 +504,7 @@ class NCAApp {
     console.log(`Dataset built and shuffled: ${this.trainingData.length} samples, avg change: ${avgChangePercent.toFixed(1)}%`);
 
     // Create new epiplexity model
-    this.epiplexityModel = new EpiplexityModel({
-      gridSize: this.ncaConfig.width,
-      dModel: this.epiConfig.dModel,
-      numLayers: this.epiConfig.numLayers,
-      numStates: 4
-    });
+    this.epiplexityModel = this.createEpiplexityModel();
 
     // Reset graph and training state
     this.lossGraph.reset();
@@ -441,7 +519,7 @@ class NCAApp {
     this.trainBtn.disabled = false;
     this.trainBtn.classList.add('training');
 
-    console.log('Started epiplexity training');
+    console.log('Started epiplexity training with', this.epiConfig.architecture);
 
     // Start training loop
     this.trainStep();
@@ -1165,12 +1243,7 @@ class NCAApp {
     }
 
     // Create new epiplexity model
-    this.epiplexityModel = new EpiplexityModel({
-      gridSize: this.ncaConfig.width,
-      dModel: this.epiConfig.dModel,
-      numLayers: this.epiConfig.numLayers,
-      numStates: 4
-    });
+    this.epiplexityModel = this.createEpiplexityModel();
 
     // Reset graph and training state
     this.lossGraph.reset();
