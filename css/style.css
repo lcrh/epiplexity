@@ -825,3 +825,44 @@ button:disabled {
     max-width: 450px;
   }
 }
+
+/* Direct optimization keeps its own score, controls, and continuous state. */
+[hidden] { display: none !important; }
+.mode-switch { display: flex; gap: 10px; margin-bottom: 24px; }
+.mode-switch button[aria-selected="true"] { border-color: #4ecdc4; color: #4ecdc4; background: #163332; }
+#continuous-canvas { display: block; width: 384px; height: 384px; image-rendering: pixelated; }
+#reservoir-graph { display: block; width: 384px; height: 230px; }
+.direct-note { max-width: 384px; font-size: 12px; line-height: 1.7; color: #a3acba; text-align: center; }
+.direct-legend { display: flex; gap: 16px; font-size: 11px; }
+.direct-legend span:first-child { color: #4ecdc4; }
+.direct-legend span:last-child { color: #ffd166; }
+.direct-explanation { max-width: 880px; margin: 4px 0 30px; font-size: 13px; line-height: 1.8; color: #a3acba; }
+.direct-explanation a { color: #4ecdc4; }
+#direct-mode .panel { width: 420px; }
+#direct-mode .controls { width: 100%; }
+@media (max-width: 480px) {
+  #direct-mode .panel { min-width: 0; width: 100%; padding: 14px; }
+  #continuous-canvas { width: min(384px, calc(100vw - 70px)); height: auto; aspect-ratio: 1; }
+  #reservoir-graph { width: min(384px, calc(100vw - 70px)); height: auto; }
+  .mode-switch { width: 100%; }
+  .mode-switch button { flex: 1; }
+  .direct-legend { flex-wrap: wrap; gap: 6px; }
+}
+
+.experiment-mode { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.architecture-summary { font-size: 12px; line-height: 1.7; color: #4ecdc4; padding: 10px 12px; background: #102b2c; border-radius: 8px; margin-top: 8px; }
+.mode-switch { border-bottom: 1px solid #334051; padding: 0 0 12px; max-width: 864px; width: 100%; justify-content: center; }
+.mode-switch button { background: #202739; color: #a3acba; border: 1px solid #334051; border-radius: 8px; padding: 12px 24px; cursor: pointer; }
+.mode-switch button:focus-visible { outline: 2px solid #4ecdc4; outline-offset: 3px; }
+#direct-mode button { background: #293348; color: #d1d9e6; border: 1px solid #3c4961; }
+#direct-mode #optimize-btn { background: #22766d; color: #fff; border-color: #4ecdc4; }
+#direct-mode #continuous-play { background: #3d5984; color: #fff; }
+#direct-mode #continuous-randomize { background: #634881; color: #fff; }
+#direct-mode h3 { color: #a3acba; }
+#direct-mode .control-row label { color: #a3acba; }
+#direct-mode button:focus-visible, #direct-mode select:focus-visible { outline: 2px solid #4ecdc4; outline-offset: 3px; }
+#direct-export { max-width: 100%; color: #a3acba; font-size: 12px; }
+#direct-export summary { cursor: pointer; }
+#direct-export a { display: block; color: #4ecdc4; margin: 12px 0; }
+#direct-export label { display: block; margin-bottom: 6px; }
+#direct-export textarea { width: 100%; resize: vertical; color: #a3acba; background: #101521; border: 1px solid #334051; border-radius: 6px; padding: 8px; }
