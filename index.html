@@ -19,10 +19,69 @@
     an observer-dependent notion of structural complexity. More powerful observers can find structure
     where weaker ones see only noise. Generate random Neural Cellular Automata, estimate their epiplexity
     by training a predictor (transformer or convolutional) to forecast future states, and use a genetic
-    algorithm to find the most complex patterns detectable by that observer.
+    algorithm to find the most complex patterns detectable by that observer. Or directly train a continuous NCA to maximize a differentiable reservoir estimate.
     <a href="https://github.com/lcrh/epiplexity" target="_blank">[GitHub]</a>
   </p>
 
+  <nav class="mode-switch" role="tablist" aria-label="Experiment mode">
+    <button id="discrete-mode-btn" role="tab" aria-selected="true" aria-controls="discrete-mode">Measure &amp; Evolve</button>
+    <button id="direct-mode-btn" role="tab" aria-selected="false" aria-controls="direct-mode" tabindex="-1">Direct Optimization</button>
+  </nav>
+
+  <section id="direct-mode" class="main-container" hidden role="tabpanel" aria-labelledby="direct-mode-btn">
+    <div class="panel">
+      <h2>Continuous NCA · 2D</h2>
+      <div class="canvas-container"><canvas id="continuous-canvas" aria-label="Continuous NCA state, color represents the two-channel state angle"></canvas></div>
+      <div class="controls">
+        <div class="button-row full-width">
+          <button id="continuous-play">Play</button>
+          <button id="continuous-reset">Reset Grid</button>
+        </div>
+        <button id="continuous-randomize" class="big-btn">New Random Rule</button>
+        <button id="export-continuous">Export Rule &amp; Scores</button>
+        <details id="direct-export" hidden>
+          <summary>Exported experiment</summary>
+          <a id="direct-export-download">Download JSON</a>
+          <label for="direct-export-json">Or copy the rule and scores</label>
+          <textarea id="direct-export-json" readonly rows="4" spellcheck="false"></textarea>
+        </details>
+        <h3>Trainable NCA</h3>
+        <div class="control-row"><label for="continuous-channels">Hidden channels</label><select id="continuous-channels"><option value="8">8</option><option value="16" selected>16</option><option value="32">32</option><option value="64">64</option></select></div>
+        <div class="control-row"><label for="continuous-depth">Conv layers</label><select id="continuous-depth"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></div>
+        <div class="control-row"><label for="continuous-kernel">Neighborhood</label><select id="continuous-kernel"><option value="3">3 × 3</option><option value="5">5 × 5</option><option value="7">7 × 7</option></select></div>
+        <p id="continuous-architecture" class="architecture-summary"></p>
+        <p class="direct-note">One neighborhood convolution, then pointwise layers. A residual update keeps two state channels normalized at each cell.</p>
+      </div>
+      <p class="direct-note">Color shows a cell’s continuous state. Training updates the rule; Play explores its evolution on a larger 48 × 48 grid.</p>
+    </div>
+    <div class="panel">
+      <h2>Optimize Epiplexity</h2>
+      <p id="prediction-summary" class="direct-note"></p>
+      <div class="graph-container"><canvas id="reservoir-graph" aria-label="Reservoir epiplexity over optimization steps"></canvas></div>
+      <p class="direct-legend"><span>● Training batches</span><span>● Independent evaluation grids</span></p>
+      <div class="epiplexity-value">Reservoir estimate: <strong id="direct-score">—</strong> bits</div>
+      <p class="direct-note">Evaluation: <strong id="direct-evaluation">—</strong><br>Completed steps: <strong id="direct-step">0</strong></p>
+      <div class="controls">
+        <button id="optimize-btn" class="big-btn">Optimize Epiplexity</button>
+        <div class="control-row"><label for="direct-steps">Steps per run</label><select id="direct-steps"><option value="10">10</option><option value="100" selected>100</option><option value="500">500</option></select></div>
+        <h3>Prediction task</h3>
+        <div class="control-row"><label for="direct-horizon">Future window</label><select id="direct-horizon"><option value="4">4 steps</option><option value="8" selected>8 steps</option><option value="12">12 steps</option></select></div>
+        <div class="control-row"><label for="direct-width">Training grid</label><select id="direct-width"><option value="12">12 × 12</option><option value="16" selected>16 × 16</option><option value="24">24 × 24</option></select></div>
+        <h3>Frozen CNN observer</h3>
+        <div class="control-row"><label for="direct-features">Feature channels</label><select id="direct-features"><option value="16">16</option><option value="32" selected>32</option><option value="64">64</option></select></div>
+        <div class="control-row"><label for="reservoir-depth">Conv layers</label><select id="reservoir-depth"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option></select></div>
+        <div class="control-row"><label for="reservoir-kernel">Kernel size</label><select id="reservoir-kernel"><option value="3">3 × 3</option><option value="5">5 × 5</option><option value="7">7 × 7</option></select></div>
+        <p id="reservoir-architecture" class="architecture-summary"></p>
+        <h3>Gradient ascent</h3>
+        <div class="control-row"><label for="direct-rate">Learning rate</label><select id="direct-rate"><option value="0.0001">0.0001</option><option value="0.0003" selected>0.0003</option><option value="0.001">0.001</option></select></div>
+      </div>
+      <p id="direct-status" class="direct-note" role="status" aria-live="polite">Ready</p>
+    </div>
+    <p class="direct-explanation">The observer predicts each cell’s next several states from its current neighborhood. Gradient ascent changes the NCA rule to increase the fitted readout’s spectral description length. Each batch uses two fresh grids, 32 burn-in steps, and a small perturbation. Evaluation uses independent initial grids with the same frozen observer.<br><br>
+    Experimental 2D adaptation of <a href="https://arxiv.org/abs/2607.18433" target="_blank" rel="noopener">Zhang &amp; Levin’s learnable novelty estimator</a>. This score depends on the observer and settings; it is separate from the learning-curve estimates in Measure &amp; Evolve. Changing prediction settings starts a new experiment.</p>
+  </section>
+
+  <section id="discrete-mode" class="experiment-mode" role="tabpanel" aria-labelledby="discrete-mode-btn">
   <div class="main-container">
     <!-- Left Panel: NCA -->
     <div class="panel left-panel">
@@ -215,6 +274,7 @@
     <div class="zoo-grid" id="zoo-grid"></div>
   </div>
 
+  </section>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

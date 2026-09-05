@@ -9,6 +9,7 @@ import { Renderer } from './renderer.js';
 import { EpiplexityModel } from './epiplexity-model.js';
 import { ConvEpiplexityModel } from './conv-epiplexity-model.js';
 import { LossGraph } from './loss-graph.js';
+import { DirectOptimization } from './direct-optimization.js';
 
 class NCAApp {
   constructor() {
@@ -1450,6 +1451,39 @@ class NCAApp {
 document.addEventListener('DOMContentLoaded', async () => {
   const app = new NCAApp();
   await app.init();
+
+  const direct = new DirectOptimization();
+  const setMode = (continuous) => {
+    if (continuous) {
+      if (app.isAutoEvolving) app.stopAutoEvolve();
+      if (app.isTraining) app.stopTraining();
+      if (app.isRunning) app.toggleRunning();
+      direct.show();
+    } else direct.hide();
+    document.getElementById('direct-mode-btn').tabIndex = continuous ? 0 : -1;
+    document.getElementById('discrete-mode-btn').tabIndex = continuous ? -1 : 0;
+    document.getElementById('direct-mode').hidden = !continuous;
+    document.getElementById('discrete-mode').hidden = continuous;
+    document.querySelector('.zoo-section').hidden = continuous;
+    document.querySelector('.zoo-intro').hidden = continuous;
+    document.getElementById('direct-mode-btn').setAttribute('aria-selected', String(continuous));
+    document.getElementById('discrete-mode-btn').setAttribute('aria-selected', String(!continuous));
+    history.replaceState(null, '', continuous ? '#direct' : '#measure');
+  };
+  const tabs = ['discrete-mode-btn', 'direct-mode-btn'].map(id => document.getElementById(id));
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : 1 - index;
+      setMode(next === 1); tabs[next].focus();
+    });
+  });
+  document.getElementById('direct-mode-btn').addEventListener('click', () => setMode(true));
+  document.getElementById('discrete-mode-btn').addEventListener('click', () => setMode(false));
+  window.addEventListener('hashchange', () => setMode(location.hash === '#direct'));
+  if (location.hash === '#direct') setMode(true);
+  window.directOptimization = direct;
 
   // Expose for debugging
   window.ncaApp = app;
