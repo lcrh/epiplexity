@@ -182,7 +182,12 @@ export class DirectOptimization {
       this.running = false; this.busy = false; this.lock(false);
       this.startButton.disabled = false;
       this.startButton.textContent = this.stepCount ? 'Continue Optimization' : 'Optimize Epiplexity';
-      if (!failed) this.status.textContent = `${this.stepCount >= target ? 'Finished' : 'Paused'} at step ${this.stepCount}. Play to inspect the learned rule, or continue training.`;
+      if (!failed) {
+        // Training advances the preview itself; hand it back to normal playback.
+        // A tab switch also stops training, but must leave the hidden preview paused.
+        if (!this.root.hidden) this.play();
+        this.status.textContent = `${this.stepCount >= target ? 'Finished' : 'Paused'} at step ${this.stepCount}. ${this.playing ? 'Preview playing.' : 'Play to inspect the learned rule.'} Continue training to optimize further.`;
+      }
     }
   }
 
