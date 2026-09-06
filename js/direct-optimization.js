@@ -99,7 +99,7 @@ export class DirectOptimization {
   }
 
   play() {
-    if (this.busy || this.playing) return;
+    if (this.playing) return;
     this.playing = true;
     this.playButton.textContent = 'Pause';
     const tick = () => {
@@ -145,12 +145,14 @@ export class DirectOptimization {
 
   async start() {
     if (this.busy) return;
-    this.pause(); this.running = true; this.busy = true; this.lock(true);
+    this.running = true; this.busy = true; this.lock(true);
     this.startButton.textContent = 'Stop Optimization';
     const steps = Number(document.getElementById('direct-steps').value);
     const target = this.stepCount + steps;
     let failed = false;
     try {
+      // Use the same playback timer throughout training and after it finishes.
+      this.play();
       this.status.textContent = 'Evaluating the starting rule…';
       await tf.nextFrame();
       if (!this.running) return;
@@ -169,13 +171,14 @@ export class DirectOptimization {
         document.getElementById('direct-score').textContent = result.score.toFixed(2);
         document.getElementById('direct-step').textContent = String(this.stepCount);
         if (this.stepCount % 10 === 0 || this.stepCount === target) this.evaluate();
-        this.advancePreview(); this.drawGraph();
+        this.drawGraph();
         this.status.textContent = `Step ${this.stepCount} · ${(performance.now() - started).toFixed(0)} ms · gradient norm ${result.gradientNorm.toFixed(4)}`;
       }
       if (this.evaluations.at(-1)?.step !== this.stepCount) this.evaluate();
       this.drawGraph();
     } catch (error) {
       failed = true;
+      this.pause();
       console.error('Direct optimization failed', error);
       this.status.textContent = `Optimization stopped: ${error.message}`;
     } finally {
@@ -183,9 +186,6 @@ export class DirectOptimization {
       this.startButton.disabled = false;
       this.startButton.textContent = this.stepCount ? 'Continue Optimization' : 'Optimize Epiplexity';
       if (!failed) {
-        // Training advances the preview itself; hand it back to normal playback.
-        // A tab switch also stops training, but must leave the hidden preview paused.
-        if (!this.root.hidden) this.play();
         this.status.textContent = `${this.stepCount >= target ? 'Finished' : 'Paused'} at step ${this.stepCount}. ${this.playing ? 'Preview playing.' : 'Play to inspect the learned rule.'} Continue training to optimize further.`;
       }
     }
